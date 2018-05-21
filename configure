@@ -1,0 +1,19 @@
+#!/bin/bash
+SCRIPTFILE=`readlink -f "$0"`
+SCRIPTDIR=`dirname "$SCRIPTFILE"`
+BUILD_SCRIPT='scripts/build.py'
+SOURCE_DIR=`readlink -f .`
+
+ROOT_DIR=''
+pushd "." >/dev/null
+# Find base of git directory
+while [ ! -f "$BUILD_SCRIPT" ] && [ ! `pwd` = "/" ]; do cd ..; done
+[ -f "$BUILD_SCRIPT" ] && ROOT_DIR=`readlink -f .`
+popd >/dev/null
+
+if [ -z "$ROOT_DIR" ]; then
+	echo "Unable to find root directory of source tree" >&2
+	exit 1
+else
+	python3 "$ROOT_DIR/$BUILD_SCRIPT" --source-dir "$SOURCE_DIR" $@
+fi
