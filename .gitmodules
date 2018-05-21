@@ -1,0 +1,9 @@
+[submodule "sgi"]
+	path = sgi
+	url = ../sgi.git
+[submodule "osgearth"]
+	path = osgearth
+	url = ../../gwaldron/osgearth.git
+[submodule "OpenSceneGraph"]
+	path = OpenSceneGraph
+	url = ../../openscenegraph/OpenSceneGraph.git
