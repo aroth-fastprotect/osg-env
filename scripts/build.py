@@ -158,18 +158,18 @@ class osg_env_build(object):
         self._submodules = {
             'OpenSceneGraph': {
                 'Build': True,
-                'CMake':[],
+                'CMake':['-DOPENGL_PROFILE=GLCORE'],
                 'links': self._links_osg,
                 },
             'osgearth': {
-                'Build': False,
-                'CMake': ['-DOSG_DIR="$OpenSceneGraph_SOURCE_DIR;$OpenSceneGraph_BUILD_DIR"'],
+                'Build': True,
+                'CMake': ['-DOSG_DIR=$OpenSceneGraph_SOURCE_DIR;$OpenSceneGraph_BUILD_DIR'],
                 'links': self._links_osgearth,
                 },
             'sgi': {
-                'Build': False,
-                'CMake': ['-DOSG_DIR="$OpenSceneGraph_SOURCE_DIR;$OpenSceneGraph_BUILD_DIR"',
-                          '-DOSGEARTH_DIR="$osgearth_SOURCE_DIR;$osgearth_BUILD_DIR"'],
+                'Build': True,
+                'CMake': ['-DOSG_DIR=$OpenSceneGraph_SOURCE_DIR;$OpenSceneGraph_BUILD_DIR',
+                          '-DOSGEARTH_DIR=$osgearth_SOURCE_DIR;$osgearth_BUILD_DIR'],
                 'links': self._links_sgi,
                 },
             }
@@ -261,43 +261,46 @@ class osg_env_build(object):
         cmake_stderr = subprocess.STDOUT
 
         cmake_env = self._get_build_environment()
-        self.log('CMake generator: %s' % (self._cmake_generator))
-        self.log('CMake build type: %s' % (self._cmake_build_type))
-        self.log('CMake install prefix: %s' % (self._cmake_install_prefix))
+        cmake_cache_txt = os.path.join(build_dir, 'CMakeCache.txt')
+        makefile = os.path.join(build_dir, 'Makefile')
+        if not os.path.isfile(cmake_cache_txt) or not os.path.isfile(makefile):
+            self.log('CMake generator: %s' % (self._cmake_generator))
+            self.log('CMake build type: %s' % (self._cmake_build_type))
+            self.log('CMake install prefix: %s' % (self._cmake_install_prefix))
 
 
-        cmake_opts=[]
-        cmake_opts.extend(['-G', self._cmake_generator])
-        cmake_opts.append('-DCMAKE_BUILD_TYPE=%s' % self._cmake_build_type)
+            cmake_opts=[]
+            cmake_opts.extend(['-G', self._cmake_generator])
+            cmake_opts.append('-DCMAKE_BUILD_TYPE=%s' % self._cmake_build_type)
 
-        if self._cmake_definitions:
-            for k,v in self._cmake_definitions.items():
-                cmake_opts.append('-D%s=%s' % (k,v))
+            if self._cmake_definitions:
+                for k,v in self._cmake_definitions.items():
+                    cmake_opts.append('-D%s=%s' % (k,v))
 
-        if self._cmake_install_prefix is not None:
-            cmake_opts.append('-DCMAKE_INSTALL_PREFIX=%s' % self._cmake_install_prefix)
+            if self._cmake_install_prefix is not None:
+                cmake_opts.append('-DCMAKE_INSTALL_PREFIX=%s' % self._cmake_install_prefix)
 
-        for o in opts:
-            cmake_opts.append(self._expand_vars(o))
-        cmake_opts.append(source_dir)
+            for o in opts:
+                cmake_opts.append(self._expand_vars(o))
+            cmake_opts.append(source_dir)
 
-        self.log('CMake defines:')
-        for opt in cmake_opts:
-            if opt.startswith('-D'):
-                self.log('   %s' % opt[2:])
+            self.log('CMake defines:')
+            for opt in cmake_opts:
+                if opt.startswith('-D'):
+                    self.log('   %s' % opt[2:])
 
-        self._cmake_start_timestamp = time()
-        self.log('CMake:')
-        (cmake_exitcode, stdout, stderr) = runcmdAndGetData(self._cmake_executable, cmake_opts, env=cmake_env, cwd=build_dir, stdout=cmake_stdout, stderr=cmake_stderr, verbose=self._verbose)
-        ret = True if cmake_exitcode == 0 else False
+            self._cmake_start_timestamp = time()
+            self.log('CMake:')
+            (cmake_exitcode, stdout, stderr) = runcmdAndGetData(self._cmake_executable, cmake_opts, env=cmake_env, cwd=build_dir, stdout=cmake_stdout, stderr=cmake_stderr, verbose=self._verbose)
+            ret = True if cmake_exitcode == 0 else False
 
-        self._cmake_end_timestamp = time()
-        self._cmake_time = timedelta(seconds=self._cmake_end_timestamp - self._cmake_start_timestamp)
+            self._cmake_end_timestamp = time()
+            self._cmake_time = timedelta(seconds=self._cmake_end_timestamp - self._cmake_start_timestamp)
 
-        if ret:
-            self.log('CMake configuration successful in %s' % (self._cmake_time))
-        else:
-            self.error('CMake configuration failed with status %i in %s' % (cmake_exitcode, self._cmake_time))
+            if ret:
+                self.log('CMake configuration successful in %s' % (self._cmake_time))
+            else:
+                self.error('CMake configuration failed with status %i in %s' % (cmake_exitcode, self._cmake_time))
 
         if build:
             cmake_opts=[]
@@ -311,6 +314,10 @@ class osg_env_build(object):
             self.log('CMake build:')
             (cmake_exitcode, stdout, stderr) = runcmdAndGetData(self._cmake_executable, cmake_opts, env=cmake_env, cwd=build_dir, stdout=cmake_stdout, stderr=cmake_stderr, verbose=self._verbose)
             ret = True if cmake_exitcode == 0 else False
+
+            self._cmake_end_timestamp = time()
+            self._cmake_time = timedelta(seconds=self._cmake_end_timestamp - self._cmake_start_timestamp)
+
             if ret:
                 self.log('CMake build successful in %s' % (self._cmake_time))
             else:
@@ -335,9 +342,9 @@ class osg_env_build(object):
             for f in ['OpenThreads', 'osgAnimation', 'osgDB', 'osg', 'osgFX', 'osgGA', 'osgManipulator', 'osgParticle', 'osgPresentation',
                     'osgShadow', 'osgSim', 'osgTerrain', 'osgText', 'osgUI', 'osgUtil', 'osgViewer', 'osgVolume', 'osgWidget']:
                 if platform.system() == 'Windows':
-                    self._symlink('%sd.lib', os.path.join(build_dir, 'lib', '%s.lib'))
+                    self._symlink('%sd.lib' % f, os.path.join(build_dir, 'lib', '%s.lib' % f))
                 else:
-                    self._symlink('lib%sd.so', os.path.join(build_dir, 'lib', 'lib%s.so'))
+                    self._symlink('lib%sd.so' % f, os.path.join(build_dir, 'lib', 'lib%s.so' % f))
 
     def _links_osgearth(self, src_dir, build_dir):
 
