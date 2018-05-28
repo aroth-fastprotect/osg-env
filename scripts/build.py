@@ -141,6 +141,7 @@ class osg_env_build(object):
         self._script_dir = script_dir
         self._build_dir = None
         self._source_dir = None
+        self._thirdparty_dir = None
 
         self._logfile_handle = None
         self._logfile = None
@@ -149,8 +150,10 @@ class osg_env_build(object):
         self._cmake_executable = 'cmake'
         self._cmake_definitions = {}
         if platform.system() == 'Windows':
+            build_win32 = True
             self._cmake_generator = 'Visual Studio 15'
         else:
+            build_win32 = False
             self._cmake_generator = 'Unix Makefiles'
         self._cmake_install_prefix = None
         self._cmake_build_type = 'Debug'
@@ -173,6 +176,27 @@ class osg_env_build(object):
                 'links': self._links_sgi,
                 },
             }
+        
+        
+        self._thirdparty_modules = {
+            'glcore': {
+                'Build': build_win32,
+                'prepare': self._win32_glcore,
+            },
+            'qt5': {
+                'Build': build_win32,
+                'prepare': self._win32_qt5,
+            },
+            'gdal': {
+                'Build': build_win32,
+                'prepare': self._win32_gdal,
+            },
+        }
+            
+            
+    def _win32_symlink_hint(self):
+        print("For getting symlink support on Windows 7 to the same level as a UNIX machine please follow the instructions at:")
+        print("""https://superuser.com/questions/124679/how-do-i-create-a-link-in-windows-7-home-premium-as-a-regular-user""")
 
     def log(self, msg):
         sys.stdout.write(msg + '\n')
@@ -208,7 +232,29 @@ class osg_env_build(object):
     def _symlink(self, target, dest, dir=False):
         if os.path.exists(dest) or os.path.islink(dest):
             os.unlink(dest)
-        os.symlink(target, dest)
+        try:
+            os.symlink(target, dest)
+        except OSError as e:
+            if platform.system() == 'Windows':
+                print("OSError %s: %s" % (e.winerror, e))
+                self._win32_symlink_hint()
+                sys.exit(-1)
+            raise e
+
+    def _download_file(self, url, dest):
+        from urllib.request import urlretrieve
+        if not os.path.isfile(dest):
+            self.log('Download %s to %s' % (url, dest))
+            urlretrieve(url, dest)
+        else:
+            self.log('Downloaded file %s already exists.' % (dest))
+            
+    def _unzip_file(self, filename, destination_dir):
+        import zipfile
+        self.log('Unzip %s to %s' % (filename, destination_dir))
+        zip_ref = zipfile.ZipFile(filename, 'r')
+        zip_ref.extractall(destination_dir)
+        zip_ref.close()
 
     def _create_build_dir(self):
         build_dir_name = os.path.basename(self._build_dir)
@@ -228,6 +274,15 @@ class osg_env_build(object):
             links = submod_opts.get('links', None)
             if links:
                 links(submod_source_dir, submod_build_dir)
+
+
+        self._thirdparty_dir = os.path.join(self._build_dir, 'thirdparty')
+                
+        self._mkpath(self._thirdparty_dir)
+        for tmod, tmod_opts in self._thirdparty_modules.items():
+            prepare = tmod_opts.get('prepare', None)
+            if prepare:
+                prepare()
 
     def _configure_and_build(self):
         for submod, submod_opts in self._submodules.items():
@@ -324,6 +379,27 @@ class osg_env_build(object):
                 self.error('CMake build failed with status %i in %s' % (cmake_exitcode, self._cmake_time))
 
         return ret
+        
+    def _win32_glcore(self):
+        d = os.path.join(self._thirdparty_dir, 'glcore', 'GL')
+        print('Prepare GLCore in %s' % d)
+        self._mkpath(d)
+        self._download_file("""https://www.khronos.org/registry/OpenGL/api/GL/glcorearb.h""", os.path.join(d, 'glcorearb.h'))
+        self._download_file("""https://www.khronos.org/registry/OpenGL/api/GL/wglext.h""", os.path.join(d, 'wglext.h'))
+
+    def _win32_qt5(self):
+        d = os.path.join(self._thirdparty_dir, 'qt5')
+        print('Prepare Qt5 in %s' % d)
+
+    def _win32_gdal(self):
+        gdal_dir = os.path.join(self._thirdparty_dir, 'gdal')
+        d = os.path.join(gdal_dir, 'zip')
+        print('Prepare GDAL in %s' % d)
+        self._mkpath(d)
+        self._download_file('''http://download.gisinternals.com/sdk/downloads/release-1911-gdal-2-3-0-mapserver-7-0-7-libs.zip''', os.path.join(d, 'release-1911-gdal-2-3-0-mapserver-7-0-7-libs.zip'))
+        self._download_file('''http://download.gisinternals.com/sdk/downloads/release-1911-gdal-2-3-0-mapserver-7-0-7.zip''', os.path.join(d, 'release-1911-gdal-2-3-0-mapserver-7-0-7.zip'))
+        self._unzip_file(os.path.join(d, 'release-1911-gdal-2-3-0-mapserver-7-0-7-libs.zip'), gdal_dir)
+        self._unzip_file(os.path.join(d, 'release-1911-gdal-2-3-0-mapserver-7-0-7.zip'), gdal_dir)
 
     def _links_osg(self, src_dir, build_dir):
         #print('_links_osg %s, %s' % (src_dir, build_dir))
@@ -394,8 +470,8 @@ class osg_env_build(object):
                 self._logfile_handle = None
         self.log('Logfile: %s' % self._logfile)
         self._create_build_dir()
-        self._prepare_vars()
-        self._configure_and_build()
+        #self._prepare_vars()
+        #self._configure_and_build()
 
         return 0
 
