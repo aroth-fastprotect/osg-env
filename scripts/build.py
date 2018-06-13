@@ -277,15 +277,20 @@ class osg_env_build(object):
 
 
         self._thirdparty_dir = os.path.join(self._build_dir, 'thirdparty')
-                
+
         self._mkpath(self._thirdparty_dir)
         for tmod, tmod_opts in self._thirdparty_modules.items():
+            tmod_build = tmod_opts.get('Build', True)
             prepare = tmod_opts.get('prepare', None)
-            if prepare:
+            if tmod_build and prepare:
                 prepare()
 
     def _configure_and_build(self):
         for submod, submod_opts in self._submodules.items():
+            if submod not in self._selected_submodules:
+                self.log('Skip module %s' % submod)
+                continue
+
             submod_build_dir = os.path.join(self._build_dir, submod)
             submod_source_dir = os.path.join(self._source_dir, submod)
             build = submod_opts.get('Build', True)
@@ -318,11 +323,10 @@ class osg_env_build(object):
         cmake_env = self._get_build_environment()
         cmake_cache_txt = os.path.join(build_dir, 'CMakeCache.txt')
         makefile = os.path.join(build_dir, 'Makefile')
-        if not os.path.isfile(cmake_cache_txt) or not os.path.isfile(makefile):
+        if not os.path.isfile(cmake_cache_txt) or not os.path.isfile(makefile) or self._force:
             self.log('CMake generator: %s' % (self._cmake_generator))
             self.log('CMake build type: %s' % (self._cmake_build_type))
             self.log('CMake install prefix: %s' % (self._cmake_install_prefix))
-
 
             cmake_opts=[]
             cmake_opts.extend(['-G', self._cmake_generator])
@@ -443,9 +447,12 @@ class osg_env_build(object):
         parser.add_argument('--source-dir', dest='source_dir', help='specifies the name of the source directory relative to the jenkins workspace.')
         parser.add_argument('--build-dir', dest='build_dir', help='specifies the name of the build directory relative to the jenkins workspace.')
         parser.add_argument('--logfile', dest='logfile', help='override the logfile')
+        parser.add_argument('-f', '--force', dest='force', action='store_true', help='force to run CMake for each submodules')
+        parser.add_argument('submodule', nargs='*', help='override the logfile')
         args = parser.parse_args()
 
         self._verbose = args.verbose
+        self._force = args.force
         self._logfile = args.logfile
         if args.source_dir is None:
             sys.stderr.write('No source directory specified.\n')
@@ -469,9 +476,27 @@ class osg_env_build(object):
                 sys.stderr.write('Failed to create logfile at %s\n' %self._logfile)
                 self._logfile_handle = None
         self.log('Logfile: %s' % self._logfile)
+        if self._force:
+            self.log('CMake: forced')
+
+        if args.submodule is None:
+            self._selected_submodules = self._submodules.keys()
+        else:
+            self._selected_submodules = []
+            for s in args.submodule:
+                found = False
+                for sm in self._submodules.keys():
+                    if sm.lower() == s.lower():
+                        self._selected_submodules.append(sm)
+                        found = True
+                        break
+                if not found:
+                    self.error('Unknown submodule %s (available submodule %s)' % (s, ','.join(self._submodules.keys())))
+                    return 2
+
         self._create_build_dir()
-        #self._prepare_vars()
-        #self._configure_and_build()
+        self._prepare_vars()
+        self._configure_and_build()
 
         return 0
 
