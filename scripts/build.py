@@ -432,7 +432,7 @@ class osg_env_build(object):
         self._mkpath(build_inc)
 
         for f in ['osgEarth', 'osgEarthAnnotation', 'osgEarthDrivers', 'osgEarthFeatures', 'osgEarthQt', 'osgEarthSplat', 'osgEarthSymbology', 'osgEarthUtil']:
-            self._symlink(os.path.join(src_dir, 'include', f), os.path.join(build_inc, f), dir=True)
+            self._symlink(os.path.join(src_dir, 'src', f), os.path.join(build_inc, f), dir=True)
 
     def _links_sgi(self, src_dir, build_dir):
 
