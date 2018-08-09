@@ -161,12 +161,24 @@ class osg_env_build(object):
         self._submodules = {
             'OpenSceneGraph': {
                 'Build': True,
-                'CMake':['-DOPENGL_PROFILE=GLCORE'],
+                'CMake':[
+                #'-DOPENGL_PROFILE=GLCORE'
+                '-DZLIB_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include',
+                '-DZLIB_LIBRARY=$THIRDPARTY_gdal_DIR/lib/zlib.lib',
+                '-DPNG_PNG_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include',
+                '-DPNG_LIBRARY=$THIRDPARTY_gdal_DIR/lib/libpng.lib'
+                ],
                 'links': self._links_osg,
                 },
             'osgearth': {
                 'Build': True,
-                'CMake': ['-DOSG_DIR=$OpenSceneGraph_SOURCE_DIR;$OpenSceneGraph_BUILD_DIR'],
+                'CMake': [
+                    '-DOSG_DIR=$OpenSceneGraph_SOURCE_DIR;$OpenSceneGraph_BUILD_DIR',
+                    '-DGDAL_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include',
+                    '-DGDAL_LIBRARY=$THIRDPARTY_gdal_DIR/lib/gdal_i.lib',
+                    '-DCURL_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include',
+                    '-DCURL_LIBRARY=$THIRDPARTY_gdal_DIR/lib/libcurl_imp.lib',
+                    ],
                 'links': self._links_osgearth,
                 },
             'sgi': {
@@ -285,7 +297,7 @@ class osg_env_build(object):
             if tmod_build and prepare:
                 prepare()
 
-    def _configure_and_build(self):
+    def _configure_and_build(self, build=True):
         for submod, submod_opts in self._submodules.items():
             if submod not in self._selected_submodules:
                 self.log('Skip module %s' % submod)
@@ -293,9 +305,9 @@ class osg_env_build(object):
 
             submod_build_dir = os.path.join(self._build_dir, submod)
             submod_source_dir = os.path.join(self._source_dir, submod)
-            build = submod_opts.get('Build', True)
-            if build:
-                self._run_cmake(submod_source_dir, submod_build_dir, opts=submod_opts['CMake'])
+            submod_build = submod_opts.get('Build', True)
+            if submod_build:
+                self._run_cmake(submod_source_dir, submod_build_dir, opts=submod_opts['CMake'], build=build)
 
     def _get_build_environment(self, use_os_environ=True):
         cmake_env = os.environ if use_os_environ else {}
@@ -308,7 +320,11 @@ class osg_env_build(object):
             submod_source_dir = os.path.join(self._source_dir, submod)
             self._vars['$%s_BUILD_DIR' % submod] = submod_build_dir
             self._vars['$%s_SOURCE_DIR' % submod] = submod_source_dir
-        #print(self._vars)
+            
+        for mod in self._thirdparty_modules.keys():
+            d = os.path.join(self._thirdparty_dir, mod )
+            self._vars['$THIRDPARTY_%s_DIR' % mod] = d
+        print(self._vars)
 
     def _expand_vars(self, s):
         for k,v in self._vars.items():
@@ -448,6 +464,7 @@ class osg_env_build(object):
         parser.add_argument('--build-dir', dest='build_dir', help='specifies the name of the build directory relative to the jenkins workspace.')
         parser.add_argument('--logfile', dest='logfile', help='override the logfile')
         parser.add_argument('-f', '--force', dest='force', action='store_true', help='force to run CMake for each submodules')
+        parser.add_argument('-n', '--no-build', dest='build', action='store_false', help='disable building of modules')
         parser.add_argument('submodule', nargs='*', help='override the logfile')
         args = parser.parse_args()
 
@@ -479,7 +496,7 @@ class osg_env_build(object):
         if self._force:
             self.log('CMake: forced')
 
-        if args.submodule is None:
+        if args.submodule is None or len(args.submodule) == 0:
             self._selected_submodules = self._submodules.keys()
         else:
             self._selected_submodules = []
@@ -496,7 +513,7 @@ class osg_env_build(object):
 
         self._create_build_dir()
         self._prepare_vars()
-        self._configure_and_build()
+        self._configure_and_build(build=args.build)
 
         return 0
 
