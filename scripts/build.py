@@ -136,7 +136,16 @@ def runcmdAndGetData(exe, args=[], verbose=False, outputStdErr=False, outputStdO
         stderrdata = None
     return (sts, stdoutdata, stderrdata)
 
+
 class osg_env_build(object):
+
+    def only_win32(self, s):
+        if self._build_win32:
+            return s
+        else:
+            return None
+
+
     def __init__(self):
         self._script_dir = script_dir
         self._build_dir = None
@@ -150,10 +159,10 @@ class osg_env_build(object):
         self._cmake_executable = 'cmake'
         self._cmake_definitions = {}
         if platform.system() == 'Windows':
-            build_win32 = True
+            self._build_win32 = True
             self._cmake_generator = 'Visual Studio 15'
         else:
-            build_win32 = False
+            self._build_win32 = False
             self._cmake_generator = 'Unix Makefiles'
         self._cmake_install_prefix = None
         self._cmake_build_type = 'Debug'
@@ -163,10 +172,10 @@ class osg_env_build(object):
                 'Build': True,
                 'CMake':[
                 #'-DOPENGL_PROFILE=GLCORE'
-                '-DZLIB_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include',
-                '-DZLIB_LIBRARY=$THIRDPARTY_gdal_DIR/lib/zlib.lib',
-                '-DPNG_PNG_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include',
-                '-DPNG_LIBRARY=$THIRDPARTY_gdal_DIR/lib/libpng.lib'
+                self.only_win32('-DZLIB_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include'),
+                self.only_win32('-DZLIB_LIBRARY=$THIRDPARTY_gdal_DIR/lib/zlib.lib'),
+                self.only_win32('-DPNG_PNG_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include'),
+                self.only_win32('-DPNG_LIBRARY=$THIRDPARTY_gdal_DIR/lib/libpng.lib')
                 ],
                 'links': self._links_osg,
                 },
@@ -174,10 +183,10 @@ class osg_env_build(object):
                 'Build': True,
                 'CMake': [
                     '-DOSG_DIR=$OpenSceneGraph_SOURCE_DIR;$OpenSceneGraph_BUILD_DIR',
-                    '-DGDAL_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include',
-                    '-DGDAL_LIBRARY=$THIRDPARTY_gdal_DIR/lib/gdal_i.lib',
-                    '-DCURL_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include',
-                    '-DCURL_LIBRARY=$THIRDPARTY_gdal_DIR/lib/libcurl_imp.lib',
+                    self.only_win32('-DGDAL_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include'),
+                    self.only_win32('-DGDAL_LIBRARY=$THIRDPARTY_gdal_DIR/lib/gdal_i.lib'),
+                    self.only_win32('-DCURL_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include'),
+                    self.only_win32('-DCURL_LIBRARY=$THIRDPARTY_gdal_DIR/lib/libcurl_imp.lib'),
                     ],
                 'links': self._links_osgearth,
                 },
@@ -192,15 +201,15 @@ class osg_env_build(object):
         
         self._thirdparty_modules = {
             'glcore': {
-                'Build': build_win32,
+                'Build': self._build_win32,
                 'prepare': self._win32_glcore,
             },
             'qt5': {
-                'Build': build_win32,
+                'Build': self._build_win32,
                 'prepare': self._win32_qt5,
             },
             'gdal': {
-                'Build': build_win32,
+                'Build': self._build_win32,
                 'prepare': self._win32_gdal,
             },
         }
@@ -241,9 +250,17 @@ class osg_env_build(object):
             ret = True
         return ret
 
+    def _rmdir(self, dir):
+        if os.path.lexists(dir):
+            if os.path.isdir(dir) and not os.path.islink(dir):
+                print('rm %s' % dir)
+                shutil.rmtree(dir, ignore_errors=True)
+            else:
+                print('unlink %s' % dir)
+                os.unlink(dir)
+
     def _symlink(self, target, dest, dir=False):
-        if os.path.exists(dest) or os.path.islink(dest):
-            os.unlink(dest)
+        self._rmdir(dest)
         try:
             os.symlink(target, dest)
         except OSError as e:
@@ -356,7 +373,8 @@ class osg_env_build(object):
                 cmake_opts.append('-DCMAKE_INSTALL_PREFIX=%s' % self._cmake_install_prefix)
 
             for o in opts:
-                cmake_opts.append(self._expand_vars(o))
+                if o is not None:
+                    cmake_opts.append(self._expand_vars(o))
             cmake_opts.append(source_dir)
 
             self.log('CMake defines:')
@@ -449,6 +467,10 @@ class osg_env_build(object):
 
         for f in ['osgEarth', 'osgEarthAnnotation', 'osgEarthDrivers', 'osgEarthFeatures', 'osgEarthQt', 'osgEarthSplat', 'osgEarthSymbology', 'osgEarthUtil']:
             self._symlink(os.path.join(src_dir, 'src', f), os.path.join(build_inc, f), dir=True)
+
+        build_inc_oe = os.path.join(build_dir, 'build_include/osgEarth')
+        for f in ['BuildConfig.h']:
+            self._symlink(os.path.join(build_inc_oe, f), os.path.join(build_dir, 'include/osgEarth', f))
 
     def _links_sgi(self, src_dir, build_dir):
 
