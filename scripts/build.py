@@ -169,6 +169,7 @@ class osg_env_build(object):
 
         self._submodules = {
             'OpenSceneGraph': {
+                'alias': ['osg'],
                 'Build': True,
                 'CMake':[
                 #'-DOPENGL_PROFILE=GLCORE'
@@ -179,7 +180,21 @@ class osg_env_build(object):
                 ],
                 'links': self._links_osg,
                 },
+            'VulkanSceneGraph': {
+                'alias': ['vsg'],
+                'Build': True,
+                'CMake':[
+                #'-DOPENGL_PROFILE=GLCORE'
+                '-DBUILD_SHARED_LIBS=ON',
+                self.only_win32('-DZLIB_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include'),
+                self.only_win32('-DZLIB_LIBRARY=$THIRDPARTY_gdal_DIR/lib/zlib.lib'),
+                self.only_win32('-DPNG_PNG_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include'),
+                self.only_win32('-DPNG_LIBRARY=$THIRDPARTY_gdal_DIR/lib/libpng.lib')
+                ],
+                'links': self._links_vsg,
+                },
             'osgearth': {
+                'alias': ['oe'],
                 'Build': True,
                 'CMake': [
                     '-DOSG_DIR=$OpenSceneGraph_SOURCE_DIR;$OpenSceneGraph_BUILD_DIR',
@@ -268,7 +283,8 @@ class osg_env_build(object):
                 print("OSError %s: %s" % (e.winerror, e))
                 self._win32_symlink_hint()
                 sys.exit(-1)
-            raise e
+            else:
+                print("OSError %s: %s" % (e.errno, e))
 
     def _download_file(self, url, dest):
         from urllib.request import urlretrieve
@@ -460,6 +476,27 @@ class osg_env_build(object):
                 else:
                     self._symlink('lib%sd.so' % f, os.path.join(build_dir, 'lib', 'lib%s.so' % f))
 
+    def _links_vsg(self, src_dir, build_dir):
+        #print('_links_osg %s, %s' % (src_dir, build_dir))
+        build_inc_vsg = os.path.join(build_dir, 'include/vsg')
+        self._mkpath(build_inc_vsg)
+
+        build_inc_ot = os.path.join(build_dir, 'include/OpenThreads')
+        self._mkpath(build_inc_ot)
+
+        for f in ['Version', 'Config', 'GL']:
+            self._symlink(os.path.join(build_inc_vsg, f), os.path.join(src_dir, 'include/vsg', f))
+        for f in ['Version', 'Config']:
+            self._symlink(os.path.join(build_inc_ot, f), os.path.join(src_dir, 'include/OpenThreads', f))
+
+        if self._cmake_build_type == 'Debug':
+            for f in ['OpenThreads', 'osgAnimation', 'osgDB', 'osg', 'osgFX', 'osgGA', 'osgManipulator', 'osgParticle', 'osgPresentation',
+                    'osgShadow', 'osgSim', 'osgTerrain', 'osgText', 'osgUI', 'osgUtil', 'osgViewer', 'osgVolume', 'osgWidget']:
+                if platform.system() == 'Windows':
+                    self._symlink('%sd.lib' % f, os.path.join(build_dir, 'lib', '%s.lib' % f))
+                else:
+                    self._symlink('lib%sd.so' % f, os.path.join(build_dir, 'lib', 'lib%s.so' % f))
+
     def _links_osgearth(self, src_dir, build_dir):
 
         build_inc = os.path.join(build_dir, 'include')
@@ -524,15 +561,23 @@ class osg_env_build(object):
             self._selected_submodules = []
             for s in args.submodule:
                 found = False
-                for sm in self._submodules.keys():
-                    if sm.lower() == s.lower():
-                        self._selected_submodules.append(sm)
+                for sk, sv in self._submodules.items():
+                    if sk.lower() == s.lower():
+                        self._selected_submodules.append(sk)
                         found = True
                         break
+                    else:
+                        for a in sv.get('alias', []):
+                            if a.lower() == s.lower():
+                                self._selected_submodules.append(sk)
+                                found = True
+                                break
+
                 if not found:
                     self.error('Unknown submodule %s (available submodule %s)' % (s, ','.join(self._submodules.keys())))
                     return 2
 
+        self.log('Submodules: %s' % ','.join(self._selected_submodules))
         self._create_build_dir()
         self._prepare_vars()
         self._configure_and_build(build=args.build)
