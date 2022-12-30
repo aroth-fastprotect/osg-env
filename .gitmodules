@@ -7,3 +7,6 @@
 [submodule "OpenSceneGraph"]
 	path = OpenSceneGraph
 	url = ../../openscenegraph/OpenSceneGraph.git
+[submodule "OpenSceneGraph-Data"]
+	path = OpenSceneGraph-Data
+	url = https://github.com/openscenegraph/OpenSceneGraph-Data.git
