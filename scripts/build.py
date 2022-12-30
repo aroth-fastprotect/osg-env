@@ -182,7 +182,7 @@ class osg_env_build(object):
                 },
             'VulkanSceneGraph': {
                 'alias': ['vsg'],
-                'Build': True,
+                'Build': False,
                 'CMake':[
                 #'-DOPENGL_PROFILE=GLCORE'
                 '-DBUILD_SHARED_LIBS=ON',
@@ -331,6 +331,7 @@ class osg_env_build(object):
                 prepare()
 
     def _configure_and_build(self, build=True):
+        ret = True
         for submod, submod_opts in self._submodules.items():
             if submod not in self._selected_submodules:
                 self.log('Skip module %s' % submod)
@@ -340,7 +341,10 @@ class osg_env_build(object):
             submod_source_dir = os.path.join(self._source_dir, submod)
             submod_build = submod_opts.get('Build', True)
             if submod_build:
-                self._run_cmake(submod_source_dir, submod_build_dir, opts=submod_opts['CMake'], build=build)
+                if not self._run_cmake(submod_source_dir, submod_build_dir, opts=submod_opts['CMake'], build=build):
+                    ret = False
+                    break
+        return ret
 
     def _get_build_environment(self, use_os_environ=True):
         cmake_env = os.environ if use_os_environ else {}
@@ -368,6 +372,10 @@ class osg_env_build(object):
 
         cmake_stdout = logfile_writer_proxy(self._logfile_handle)
         cmake_stderr = subprocess.STDOUT
+
+        if not os.path.isdir(source_dir):
+            self.error('CMake source directory %s does not exist' % source_dir)
+            return False
 
         cmake_env = self._get_build_environment()
         cmake_cache_txt = os.path.join(build_dir, 'CMakeCache.txt')
@@ -580,7 +588,8 @@ class osg_env_build(object):
         self.log('Submodules: %s' % ','.join(self._selected_submodules))
         self._create_build_dir()
         self._prepare_vars()
-        self._configure_and_build(build=args.build)
+        if not self._configure_and_build(build=args.build):
+            return 1
 
         return 0
 
