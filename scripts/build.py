@@ -172,6 +172,7 @@ class osg_env_build(object):
                 'alias': ['osg'],
                 'Build': True,
                 'CMake':[
+                    '-DOPENGL_PROFILE=GL3',
                 #'-DOPENGL_PROFILE=GLCORE'
                 self.only_win32('-DZLIB_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include'),
                 self.only_win32('-DZLIB_LIBRARY=$THIRDPARTY_gdal_DIR/lib/zlib.lib'),
