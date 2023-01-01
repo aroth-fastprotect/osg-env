@@ -145,6 +145,11 @@ class osg_env_build(object):
         else:
             return None
 
+    def only_linux(self, s):
+        if not self._build_win32:
+            return s
+        else:
+            return None
 
     def __init__(self):
         self._script_dir = script_dir
@@ -199,6 +204,7 @@ class osg_env_build(object):
                 'Build': True,
                 'CMake': [
                     '-DOSG_DIR=$OpenSceneGraph_SOURCE_DIR;$OpenSceneGraph_BUILD_DIR',
+                    self.only_linux('-DOpenGL_GL_PREFERENCE=GLVND'),
                     self.only_win32('-DGDAL_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include'),
                     self.only_win32('-DGDAL_LIBRARY=$THIRDPARTY_gdal_DIR/lib/gdal_i.lib'),
                     self.only_win32('-DCURL_INCLUDE_DIR=$THIRDPARTY_gdal_DIR/include'),
