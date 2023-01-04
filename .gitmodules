@@ -16,3 +16,6 @@
 [submodule "vsgQt"]
 	path = vsgQt
 	url = https://github.com/vsg-dev/vsgQt.git
+[submodule "vsgExamples"]
+	path = vsgExamples
+	url = https://github.com/vsg-dev/vsgExamples.git
