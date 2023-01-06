@@ -226,6 +226,7 @@ class osg_env_build(object):
                 },
             'sgi': {
                 'Build': True,
+                'Dev': True,
                 'CMake': ['-DOSG_DIR=$OpenSceneGraph_SOURCE_DIR;$OpenSceneGraph_BUILD_DIR',
                           '-DOSGEARTH_DIR=$osgearth_SOURCE_DIR;$osgearth_BUILD_DIR'],
                 'links': self._links_sgi,
@@ -325,13 +326,15 @@ class osg_env_build(object):
         for f in ['', 'bin', 'lib']:
             d = os.path.join(self._build_dir, f)
             self._mkpath(d)
-            for submod in self._submodules.keys():
+            for submod, submod_opts in self._submodules.items():
                 submoddir = os.path.join(self._build_dir, submod)
-            #     if f:
-            #         r = os.path.relpath(d, submoddir)
-            #         self._symlink(r, os.path.join(submoddir, f), dir=True)
-            #     else:
+                submod_dev = submod_opts.get('Dev', False)
                 self._mkpath(submoddir)
+                if submod_dev:
+                    r = os.path.relpath(d, submoddir)
+                    self._symlink(r, os.path.join(submoddir, f), dir=True)
+
+
         for submod, submod_opts in self._submodules.items():
             submod_build_dir = os.path.join(self._build_dir, submod)
             submod_source_dir = os.path.join(self._source_dir, submod)
@@ -359,8 +362,9 @@ class osg_env_build(object):
             submod_build_dir = os.path.join(self._build_dir, submod)
             submod_source_dir = os.path.join(self._source_dir, submod)
             submod_build = submod_opts.get('Build', True)
+            submod_dev = submod_opts.get('Dev', False)
             if submod_build:
-                if not self._run_cmake(submod_source_dir, submod_build_dir, opts=submod_opts['CMake'], build=build, install=install):
+                if not self._run_cmake(submod_source_dir, submod_build_dir, opts=submod_opts['CMake'], build=build, install=True if install and not submod_dev else False):
                     ret = False
                     break
         return ret
